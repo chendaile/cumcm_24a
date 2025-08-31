@@ -46,6 +46,8 @@ class BenchDragonNode:
         return (r, theta)
     
     def get_xy(self, polar_pos):
+        if polar_pos is None:
+            return None
         r, theta = polar_pos
         x = r * cos(-theta); y = r * sin(-theta)
         return (x, y)
@@ -84,6 +86,7 @@ class BenchDragon:
         """
         Time unit is seconds
         """
+        self.moment = moment
         self.NodeSum = 223
         self.Nodes = {}
         
@@ -93,7 +96,7 @@ class BenchDragon:
         for i in range(2, self.NodeSum+1):
             front_linear_pos_i = self.Nodes[i-1].back_linear_pos
             front_velocity_i = self.Nodes[i-1].back_velocity
-            self.Nodes[i] = BenchDragonNode(220, i, front_velocity_i, ront_linear_pos=front_linear_pos_i)
+            self.Nodes[i] = BenchDragonNode(220, i, front_velocity_i, front_linear_pos=front_linear_pos_i)
 
     def show_allNodes(self):
         show_contents = {}
@@ -109,7 +112,7 @@ class BenchDragon:
             }
             show_contents[f'节点{i}'] = content
         show_contents = pd.DataFrame(show_contents)
-        show_contents.to_csv("./output/show_contents.csv")
+        show_contents.to_csv(f"./output/show_contents-Q1-{self.moment}s.csv")
         
 def main():
     BenchDragon_t = BenchDragon(10)
