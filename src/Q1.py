@@ -1,4 +1,4 @@
-import numpy 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt 
 from math import pi, sqrt, atan, sin, cos
@@ -82,10 +82,11 @@ class BenchDragonNode:
             return None
 
 class BenchDragon:
-    def __init__(self, moment):
+    def __init__(self, moment, a=16*55, b=55/(pi*2)):
         """
         Time unit is seconds
         """
+        self.a = a;self.b = b
         self.moment = moment
         self.NodeSum = 223
         self.Nodes = {}
@@ -112,11 +113,68 @@ class BenchDragon:
             }
             show_contents[f'节点{i}'] = content
         show_contents = pd.DataFrame(show_contents)
-        show_contents.to_csv(f"./output/show_contents-Q1-{self.moment}s.csv")
+        show_contents.to_csv(f"./output/preview_contents-Q1-{self.moment}s.csv")
+    
+    def visualize_Nodes(self):
+        """可视化龙身节点在螺线轨道上的分布"""
+        plt.figure(figsize=(12, 12))
+        plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+        
+        theta_track = np.linspace(0, 16*2*pi, 1000)
+        r_track = self.a - self.b * theta_track
+        x_track = r_track * np.cos(-theta_track)
+        y_track = r_track * np.sin(-theta_track)
+        plt.plot(x_track, y_track, 'k--', alpha=0.3, linewidth=1, label='Spiral Track')
+        
+        front_x, front_y = [], []
+        back_x, back_y = [], []
+        node_indices = []
+        
+        for i in range(1, self.NodeSum+1):
+            node = self.Nodes[i]
+            
+            if node.front_xy is not None:
+                front_x.append(node.front_xy[0])
+                front_y.append(node.front_xy[1])
+                node_indices.append(i)
+            
+            if node.back_xy is not None:
+                back_x.append(node.back_xy[0])
+                back_y.append(node.back_xy[1])
+        
+        if front_x:
+            plt.scatter(front_x, front_y, c='red', s=30, alpha=0.7, label='Node Front', marker='o')
+        if back_x:
+            plt.scatter(back_x, back_y, c='blue', s=30, alpha=0.7, label='Node Back', marker='s')
+        
+        for i in range(1, self.NodeSum+1):
+            node = self.Nodes[i]
+            if node.front_xy is not None and node.back_xy is not None:
+                plt.plot([node.front_xy[0], node.back_xy[0]], 
+                        [node.front_xy[1], node.back_xy[1]], 
+                        'gray', alpha=0.5, linewidth=1)
+        for i in range(1, min(11, len(node_indices)+1)):
+            node = self.Nodes[i]
+            if node.front_xy is not None:
+                plt.annotate(f'{i}', (node.front_xy[0], node.front_xy[1]), 
+                           xytext=(5, 5), textcoords='offset points', fontsize=8)
+        
+        plt.axis('equal')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.title(f'Dragon Nodes Distribution (t={self.moment}s)')
+        plt.xlabel('X (cm)')
+        plt.ylabel('Y (cm)')  
+        plt.savefig(f'./output/dragon_nodes_visualization-{self.moment}s.png', 
+                   dpi=800, bbox_inches='tight')
+        plt.show()
+        print(f"在轨道上的节点数量: {len([i for i in range(1, self.NodeSum+1) if self.Nodes[i].front_enter])}")
+        print(f"可视化图片已保存至: ./output/dragon_nodes_visualization-{self.moment}s.png")
         
 def main():
     BenchDragon_t = BenchDragon(10)
     BenchDragon_t.show_allNodes()
+    BenchDragon_t.visualize_Nodes()
 
 if __name__ == "__main__":
     main()
