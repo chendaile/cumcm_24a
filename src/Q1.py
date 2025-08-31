@@ -1,5 +1,5 @@
 import numpy 
-import pandas
+import pandas as pd
 import matplotlib.pyplot as plt 
 from math import pi, sqrt, atan, sin, cos
 
@@ -30,6 +30,12 @@ class BenchDragonNode:
         self.front_tangent_ang = self.get_tangent_ang(self.front_polar_pos)
         self.back_tangent_ang = self.get_tangent_ang(self.back_polar_pos)
 
+        self.front_velocity = front_velocity
+        self.back_velocity = self.get_back_velocity()
+
+        self.front_xy = self.get_xy(self.front_polar_pos)
+        self.back_xy = self.get_xy(self.back_polar_pos)
+
     def get_polar_pos(self, linear_pos, a=16*55, b=55/(pi*2)):
         """
         The spiral formula is r = a - bθ
@@ -38,6 +44,11 @@ class BenchDragonNode:
         theta = (a - sqrt(a**2 - 2*linear_pos*b)) / b
         r = a - b * theta
         return (r, theta)
+    
+    def get_xy(self, polar_pos):
+        r, theta = polar_pos
+        x = r * cos(-theta); y = r * sin(-theta)
+        return (x, y)
     
     def get_board_ang(self):
         """
@@ -59,6 +70,14 @@ class BenchDragonNode:
             return -theta + atan((self.a - self.b * theta) / self.b)
         else:
             return None
+        
+    def get_back_velocity(self):
+        if self.board_ang:
+            front_ang_diff_cos = abs(cos(self.front_tangent_ang - self.board_ang))
+            back_ang_diff_cos = abs(cos(self.back_tangent_ang - self.board_ang))
+            return self.front_velocity * back_ang_diff_cos / front_ang_diff_cos
+        else:
+            return None
 
 class BenchDragon:
     def __init__(self, moment):
@@ -70,9 +89,31 @@ class BenchDragon:
         
         HeadSpeed = 100
         self.Head_linear_pos = HeadSpeed * moment
-        self.Nodes[1] = BenchDragonNode(341, 1, self.Head_linear_pos)
+        self.Nodes[1] = BenchDragonNode(341, 1, 100, self.Head_linear_pos)
         for i in range(2, self.NodeSum+1):
             front_linear_pos_i = self.Nodes[i-1].back_linear_pos
-            self.Nodes[i] = BenchDragonNode(220, i, front_linear_pos=front_linear_pos_i)
+            front_velocity_i = self.Nodes[i-1].back_velocity
+            self.Nodes[i] = BenchDragonNode(220, i, front_velocity_i, ront_linear_pos=front_linear_pos_i)
+
+    def show_allNodes(self):
+        show_contents = {}
+        for i in range(1, self.NodeSum+1):
+            node_i = self.Nodes[i]
+            content = {
+                'front xy': node_i.front_xy,
+                'back xy': node_i.back_xy,
+                'front polar': node_i.front_polar_pos,
+                'back polar': node_i.back_polar_pos,
+                'front velocity': node_i.front_velocity,
+                'back velocity': node_i.back_velocity
+            }
+            show_contents[f'节点{i}'] = content
+        show_contents = pd.DataFrame(show_contents)
+        show_contents.to_csv("./output/show_contents.csv")
         
-    
+def main():
+    BenchDragon_t = BenchDragon(10)
+    BenchDragon_t.show_allNodes()
+
+if __name__ == "__main__":
+    main()
