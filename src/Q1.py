@@ -75,10 +75,12 @@ class BenchDragonNode:
         
     def get_back_velocity(self):
         if self.board_ang:
-            front_ang_diff_cos = abs(cos(self.front_tangent_ang - self.board_ang))
-            back_ang_diff_cos = abs(cos(self.back_tangent_ang - self.board_ang))
-            return self.front_velocity * back_ang_diff_cos / front_ang_diff_cos
+            self.front_ang_diff_cos = abs(cos(self.front_tangent_ang - self.board_ang))
+            self.back_ang_diff_cos = abs(cos(self.back_tangent_ang - self.board_ang))
+            return self.front_velocity * self.front_ang_diff_cos / self.back_ang_diff_cos
         else:
+            self.front_ang_diff_cos = None
+            self.back_ang_diff_cos = None
             return None
 
 class BenchDragon:
@@ -109,14 +111,15 @@ class BenchDragon:
                 'front polar': node_i.front_polar_pos,
                 'back polar': node_i.back_polar_pos,
                 'front velocity': node_i.front_velocity,
-                'back velocity': node_i.back_velocity
+                'back velocity': node_i.back_velocity,
+                'front_ang_diff_cos': node_i.front_ang_diff_cos,
+                'back_ang_diff_cos': node_i.back_ang_diff_cos
             }
             show_contents[f'节点{i}'] = content
         show_contents = pd.DataFrame(show_contents)
         show_contents.to_csv(f"./output/preview_contents-Q1-{self.moment}s.csv")
     
     def visualize_Nodes(self):
-        """可视化龙身节点在螺线轨道上的分布"""
         plt.figure(figsize=(12, 12))
         plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
         
@@ -172,7 +175,7 @@ class BenchDragon:
         print(f"可视化图片已保存至: ./output/dragon_nodes_visualization-{self.moment}s.png")
         
 def main():
-    BenchDragon_t = BenchDragon(10)
+    BenchDragon_t = BenchDragon(300)
     BenchDragon_t.show_allNodes()
     BenchDragon_t.visualize_Nodes()
 
