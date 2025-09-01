@@ -301,6 +301,14 @@ class BenchDragon:
         y_track = r_track * np.sin(-theta_track)
         plt.plot(x_track, y_track, 'k--', alpha=0.3,
                  linewidth=1, label='Spiral Track')
+        
+        # 画掉头空间边界圆 (直径900cm，半径450cm)
+        circle_theta = np.linspace(0, 2*pi, 100)
+        circle_radius = 450  # 半径450cm
+        circle_x = circle_radius * np.cos(circle_theta)
+        circle_y = circle_radius * np.sin(circle_theta)
+        plt.plot(circle_x, circle_y, 'r-', alpha=0.6, 
+                 linewidth=2, label='Turning Space Boundary (D=900cm)')
 
         # 检查碰撞
         has_collision, collisions = self.check_all_collisions()
@@ -355,7 +363,9 @@ class BenchDragon:
                                       label=f'Colliding Benches ({len(collision_nodes)})')
         normal_legend = plt.Line2D([0], [0], color='blue', linewidth=1,
                                    label='Normal Benches')
-        plt.legend(handles=[collision_legend, normal_legend])
+        boundary_legend = plt.Line2D([0], [0], color='red', linewidth=2,
+                                     label='Turning Space Boundary (D=900cm)')
+        plt.legend(handles=[collision_legend, normal_legend, boundary_legend])
 
         plt.savefig(f'./output/Q3/collision_visualization-{self.moment}s-{self.Spiral_spacing}cm.png',
                     dpi=800, bbox_inches='tight')
