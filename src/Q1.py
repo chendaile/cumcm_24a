@@ -114,23 +114,39 @@ class BenchDragon:
 
     def get_moment_pos(self):
         moment_content = {}
-        moment_content['龙头x (m)'], moment_content['龙头y (m)'] = self.Nodes[1].front_xy
+        if self.Nodes[1].front_xy:
+            moment_content['龙头x (m)'] = round(self.Nodes[1].front_xy[0] / 100, 6)
+            moment_content['龙头y (m)'] = round(self.Nodes[1].front_xy[1] / 100, 6)
+        else:
+            moment_content['龙头x (m)'], moment_content['龙头y (m)'] = None, None
+        
         for i in range(2, self.NodeSum):
-            moment_content[f'第{i-1}节龙身x (m)'], moment_content[f'第{i-1}节龙身y (m)'] = self.Nodes[i].front_xy \
-                if self.Nodes[i].front_xy else None, None
-        moment_content['龙尾x (m)'], moment_content['龙尾y (m)'] = self.Nodes[self.NodeSum].front_xy \
-            if self.Nodes[self.NodeSum].front_xy else None, None
-        moment_content['龙尾（后）x (m)'], moment_content['龙尾（后）y (m)'] = self.Nodes[self.NodeSum].back_xy \
-            if self.Nodes[self.NodeSum].back_xy else None, None
+            if self.Nodes[i].front_xy:
+                moment_content[f'第{i-1}节龙身x (m)'] = round(self.Nodes[i].front_xy[0] / 100, 6)
+                moment_content[f'第{i-1}节龙身y (m)'] = round(self.Nodes[i].front_xy[1] / 100, 6)
+            else:
+                moment_content[f'第{i-1}节龙身x (m)'], moment_content[f'第{i-1}节龙身y (m)'] = None, None
+        
+        if self.Nodes[self.NodeSum].front_xy:
+            moment_content['龙尾x (m)'] = round(self.Nodes[self.NodeSum].front_xy[0] / 100, 6)
+            moment_content['龙尾y (m)'] = round(self.Nodes[self.NodeSum].front_xy[1] / 100, 6)
+        else:
+            moment_content['龙尾x (m)'], moment_content['龙尾y (m)'] = None, None
+            
+        if self.Nodes[self.NodeSum].back_xy:
+            moment_content['龙尾（后）x (m)'] = round(self.Nodes[self.NodeSum].back_xy[0] / 100, 6)
+            moment_content['龙尾（后）y (m)'] = round(self.Nodes[self.NodeSum].back_xy[1] / 100, 6)
+        else:
+            moment_content['龙尾（后）x (m)'], moment_content['龙尾（后）y (m)'] = None, None
         return moment_content
 
     def get_moment_velo(self):
         moment_content = {}
-        moment_content['龙头 (m/s)'] = self.Nodes[1].front_velocity
+        moment_content['龙头 (m/s)'] = round(self.Nodes[1].front_velocity / 100, 6) if self.Nodes[1].front_velocity else None
         for i in range(2, self.NodeSum):
-            moment_content[f'第{i-1}节龙身  (m/s)'] = self.Nodes[i].front_velocity
-        moment_content['龙尾  (m/s)'] = self.Nodes[self.NodeSum].front_velocity
-        moment_content['龙尾（后） (m/s)'] = self.Nodes[self.NodeSum].back_velocity
+            moment_content[f'第{i-1}节龙身  (m/s)'] = round(self.Nodes[i].front_velocity / 100, 6) if self.Nodes[i].front_velocity else None
+        moment_content['龙尾  (m/s)'] = round(self.Nodes[self.NodeSum].front_velocity / 100, 6) if self.Nodes[self.NodeSum].front_velocity else None
+        moment_content['龙尾（后） (m/s)'] = round(self.Nodes[self.NodeSum].back_velocity / 100, 6) if self.Nodes[self.NodeSum].back_velocity else None
         return moment_content
 
     def show_allNodes(self):
