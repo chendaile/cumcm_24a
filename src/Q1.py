@@ -61,21 +61,29 @@ class BenchDragonNode:
     def get_board_ang(self):
         """
         result = arctan((r₂sin θ₂ - r₁sin θ₁) / (r₂cos θ₂ - r₁cos θ₁))
+        注意：与get_xy方法保持坐标系一致，使用-theta
         """
         if self.back_enter and self.front_enter:
             r1, theta1 = self.front_polar_pos
             r2, theta2 = self.back_polar_pos
-            return atan((r2*sin(theta2)-r1*sin(theta1)) / (r2*cos(theta2)-r1*cos(theta1)))
+            # 使用-theta保持与get_xy方法的坐标系一致
+            return atan((r2*sin(-theta2)-r1*sin(-theta1)) / (r2*cos(-theta2)-r1*cos(-theta1)))
         else:
             return None
 
     def get_tangent_ang(self, polar_pos):
         """
-        result = -θ + arctan((a - bθ) / b)
+        对于螺旋线 r = a - bθ，切线角度 = θ + arctan(r / (dr/dθ))
+        其中 dr/dθ = -b
+        所以切线角度 = θ + arctan(r / (-b)) = θ - arctan(r / b)
+        注意：与坐标系保持一致，最终使用-theta
         """
         if polar_pos:
-            theta = polar_pos[1]
-            return -theta + atan((self.a - self.b * theta) / self.b)
+            r, theta = polar_pos
+            # 螺旋线的切线角度计算
+            tangent_angle = theta - atan(r / self.b)
+            # 为了与get_xy方法的坐标系一致，使用负角度
+            return -tangent_angle
         else:
             return None
 
@@ -115,38 +123,50 @@ class BenchDragon:
     def get_moment_pos(self):
         moment_content = {}
         if self.Nodes[1].front_xy:
-            moment_content['龙头x (m)'] = round(self.Nodes[1].front_xy[0] / 100, 6)
-            moment_content['龙头y (m)'] = round(self.Nodes[1].front_xy[1] / 100, 6)
+            moment_content['龙头x (m)'] = round(
+                self.Nodes[1].front_xy[0] / 100, 6)
+            moment_content['龙头y (m)'] = round(
+                self.Nodes[1].front_xy[1] / 100, 6)
         else:
             moment_content['龙头x (m)'], moment_content['龙头y (m)'] = None, None
-        
+
         for i in range(2, self.NodeSum):
             if self.Nodes[i].front_xy:
-                moment_content[f'第{i-1}节龙身x (m)'] = round(self.Nodes[i].front_xy[0] / 100, 6)
-                moment_content[f'第{i-1}节龙身y (m)'] = round(self.Nodes[i].front_xy[1] / 100, 6)
+                moment_content[f'第{i-1}节龙身x (m)'] = round(
+                    self.Nodes[i].front_xy[0] / 100, 6)
+                moment_content[f'第{i-1}节龙身y (m)'] = round(
+                    self.Nodes[i].front_xy[1] / 100, 6)
             else:
                 moment_content[f'第{i-1}节龙身x (m)'], moment_content[f'第{i-1}节龙身y (m)'] = None, None
-        
+
         if self.Nodes[self.NodeSum].front_xy:
-            moment_content['龙尾x (m)'] = round(self.Nodes[self.NodeSum].front_xy[0] / 100, 6)
-            moment_content['龙尾y (m)'] = round(self.Nodes[self.NodeSum].front_xy[1] / 100, 6)
+            moment_content['龙尾x (m)'] = round(
+                self.Nodes[self.NodeSum].front_xy[0] / 100, 6)
+            moment_content['龙尾y (m)'] = round(
+                self.Nodes[self.NodeSum].front_xy[1] / 100, 6)
         else:
             moment_content['龙尾x (m)'], moment_content['龙尾y (m)'] = None, None
-            
+
         if self.Nodes[self.NodeSum].back_xy:
-            moment_content['龙尾（后）x (m)'] = round(self.Nodes[self.NodeSum].back_xy[0] / 100, 6)
-            moment_content['龙尾（后）y (m)'] = round(self.Nodes[self.NodeSum].back_xy[1] / 100, 6)
+            moment_content['龙尾（后）x (m)'] = round(
+                self.Nodes[self.NodeSum].back_xy[0] / 100, 6)
+            moment_content['龙尾（后）y (m)'] = round(
+                self.Nodes[self.NodeSum].back_xy[1] / 100, 6)
         else:
             moment_content['龙尾（后）x (m)'], moment_content['龙尾（后）y (m)'] = None, None
         return moment_content
 
     def get_moment_velo(self):
         moment_content = {}
-        moment_content['龙头 (m/s)'] = round(self.Nodes[1].front_velocity / 100, 6) if self.Nodes[1].front_velocity else None
+        moment_content['龙头 (m/s)'] = round(self.Nodes[1].front_velocity /
+                                           100, 6) if self.Nodes[1].front_velocity else None
         for i in range(2, self.NodeSum):
-            moment_content[f'第{i-1}节龙身  (m/s)'] = round(self.Nodes[i].front_velocity / 100, 6) if self.Nodes[i].front_velocity else None
-        moment_content['龙尾  (m/s)'] = round(self.Nodes[self.NodeSum].front_velocity / 100, 6) if self.Nodes[self.NodeSum].front_velocity else None
-        moment_content['龙尾（后） (m/s)'] = round(self.Nodes[self.NodeSum].back_velocity / 100, 6) if self.Nodes[self.NodeSum].back_velocity else None
+            moment_content[f'第{i-1}节龙身  (m/s)'] = round(
+                self.Nodes[i].front_velocity / 100, 6) if self.Nodes[i].front_velocity else None
+        moment_content['龙尾  (m/s)'] = round(self.Nodes[self.NodeSum].front_velocity /
+                                            100, 6) if self.Nodes[self.NodeSum].front_velocity else None
+        moment_content['龙尾（后） (m/s)'] = round(self.Nodes[self.NodeSum].back_velocity /
+                                              100, 6) if self.Nodes[self.NodeSum].back_velocity else None
         return moment_content
 
     def show_allNodes(self):
@@ -244,10 +264,14 @@ def main():
 
 
 def test():
-    BenchDragon_t = BenchDragon(300)
+    BenchDragon_t = BenchDragon(269)
+    BenchDragon_t.show_allNodes()
+    BenchDragon_t.visualize_Nodes()
+    BenchDragon_t = BenchDragon(299)
     BenchDragon_t.show_allNodes()
     BenchDragon_t.visualize_Nodes()
 
 
 if __name__ == "__main__":
+    test()
     main()
