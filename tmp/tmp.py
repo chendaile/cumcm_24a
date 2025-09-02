@@ -1,6 +1,7 @@
 import numpy as np
 from math import sin, cos, atan2, sqrt, pi
 import sympy as sp
+from sympy import sqrt as sp_sqrt
 
 
 class Uturn_system:
@@ -26,22 +27,42 @@ class Uturn_system:
                          'theta_2r': theta_2r, 'theta_r': theta_r}
 
     def get_distance_twopoint(self, point1, point2):
-        return sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
+        return sp_sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
 
     def solve(self):
-        # 方程组
+        # 构建方程组
         distance_2r_enter = self.get_distance_twopoint(
             self.enter_point, self.center_circle_2r)
         distance_r_exit = self.get_distance_twopoint(
             self.exit_point, self.center_circle_r)
         distance_r_2r = self.get_distance_twopoint(
             self.center_circle_2r, self.center_circle_r)
-        vector_2r_enter = np.array(
-            [self.center_circle_2r.x - self.enter_point.x, self.center_circle_2r.y - self.enter_point.y])
-        self.enter_point.tangent_vector * vector_2r_enter = 0
-        vector_r_exit = np.array(
-            [self.center_circle_r.x - self.exit_point.x, self.center_circle_r.y - self.exit_point.y])
-        self.exit_point.tangent_vector * vector_r_exit = 0
+        
+        # 约束方程
+        eq1 = sp.Eq(distance_2r_enter, distance_r_exit * 2)
+        eq2 = sp.Eq(distance_r_2r, distance_r_exit * 3)
+        
+        # 切线垂直约束
+        vector_2r_enter = sp.Matrix([
+            self.center_circle_2r.x - self.enter_point.x, 
+            self.center_circle_2r.y - self.enter_point.y
+        ])
+        tangent_2r = sp.Matrix([1, self.enter_point.tangent])
+        eq3 = sp.Eq(tangent_2r.dot(vector_2r_enter), 0)
+        
+        vector_r_exit = sp.Matrix([
+            self.center_circle_r.x - self.exit_point.x, 
+            self.center_circle_r.y - self.exit_point.y
+        ])
+        tangent_r = sp.Matrix([1, self.exit_point.tangent])
+        eq4 = sp.Eq(tangent_r.dot(vector_r_exit), 0)
+        
+        # 求解方程组
+        variables = [self.unknowns['r'], self.unknowns['r_2r'], 
+                    self.unknowns['theta_2r'], self.unknowns['theta_r']]
+        
+        solution = sp.solve([eq1, eq2, eq3, eq4], variables)
+        return solution
 
 
 class Uturn_point:
@@ -58,9 +79,9 @@ class Uturn_point:
             self.feedback_entry_trajectory()
         if on_exit_trajectory:
             self.feedback_exit_trajectory()
-        if self.r and self.theta:
-            self.x = self.r * cos(self.theta)
-            self.y = self.r * sin(self.theta)
+        if self.r is not None and self.theta is not None:
+            self.x = self.r * sp.cos(self.theta)
+            self.y = self.r * sp.sin(self.theta)
         self.get_vector()
 
     # def add_reference_coor(self, reference_point_x, reference_point_y, rotation_angle=0):
@@ -95,10 +116,34 @@ class Uturn_point:
             self.r = self.a + self.b * (self.theta + pi)
 
     def get_vector(self):
-        if self.on_entry_trajectory or self.on_entry_trajectory:
-            self.tangent = (sin(self.theta) * self.b + cos(self.theta) *
-                            self.r) / (cos(self.theta) * self.b - sin(self.theta) * self.r)
-            self.tangent_vector = np.array(
-                [1, self.tangent]) / sqrt(1 + self.tangent**2)
-            self.normal_vector = np.array(
-                [self.tangent, -1]) / sqrt(1 + self.tangent**2)
+        if self.on_entry_trajectory or self.on_exit_trajectory:
+            if self.theta is not None and self.r is not None:
+                self.tangent = (sp.sin(self.theta) * self.b + sp.cos(self.theta) *
+                                self.r) / (sp.cos(self.theta) * self.b - sp.sin(self.theta) * self.r)
+                # For symbolic computation, we don't need to normalize here
+                self.tangent_vector = sp.Matrix([1, self.tangent])
+                self.normal_vector = sp.Matrix([self.tangent, -1])
+
+
+# 创建实例并求解
+if __name__ == "__main__":
+    system = Uturn_system(
+        r_enter_point=400, 
+        r_exit_point=400, 
+        a=16*170, 
+        b=-170/(2*pi)
+    )
+    
+    print("开始求解...")
+    print(f"进入点坐标: ({system.enter_point.x}, {system.enter_point.y})")
+    print(f"退出点坐标: ({system.exit_point.x}, {system.exit_point.y})")
+    
+    # 尝试数值求解
+    try:
+        solution = system.solve()
+        print("求解结果：")
+        print(solution)
+    except Exception as e:
+        print(f"求解出错: {e}")
+        print("尝试数值求解...")
+        # 可以尝试使用 nsolve 进行数值求解
