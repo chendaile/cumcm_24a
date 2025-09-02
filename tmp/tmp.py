@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 class Uturn_system:
     def __init__(self, r_enter_point, r_exit_point, a, b, r_circle=450):
+        self.r_circle = r_circle
         self.a = a
         self.b = b
         self.enter_point = Uturn_point(
@@ -15,7 +16,7 @@ class Uturn_system:
         self.exit_point = Uturn_point(
             r_exit_point, on_exit_trajectory=True, a=self.a, b=self.b)
         self.circle_point_enter = Uturn_point(
-            r_circle, on_exit_trajectory=True, a=self.a, b=self.b)
+            r_circle, on_entry_trajectory=True, a=self.a, b=self.b)
         self.circle_exit_enter = Uturn_point(
             r_circle, on_exit_trajectory=True, a=self.a, b=self.b)
 
@@ -113,21 +114,37 @@ class Uturn_system:
 
     def visualize(self, solution):
         """可视化几何元素"""
-        fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+        fig, ax = plt.subplots(1, 1, figsize=(14, 12))
 
-        # 螺旋轨迹
-        theta_range = np.linspace(-4*pi, 4*pi, 1000)
-        r_entry = self.a + self.b * theta_range
-        r_exit = self.a + self.b * (theta_range + pi)
+        # 螺旋轨迹 - 从theta=0开始到r_circle=450对应的角度
+        # 计算r=450时对应的theta值
+        # 对于进入轨迹: r = a + b*theta, 所以 theta = (r-a)/b
+        # 对于退出轨迹: r = a + b*(theta+pi), 所以 theta = (r-a)/b - pi
+        theta_max_entry = (self.r_circle - self.a) / self.b
+        theta_max_exit = (self.r_circle - self.a) / self.b - pi
 
-        x_entry = r_entry * np.cos(theta_range)
-        y_entry = r_entry * np.sin(theta_range)
-        x_exit = r_exit * np.cos(theta_range)
-        y_exit = r_exit * np.sin(theta_range)
+        theta_range_entry = np.linspace(0, theta_max_entry, 1000)
+        theta_range_exit = np.linspace(0, theta_max_exit, 1000)
+
+        r_entry = self.a + self.b * theta_range_entry
+        r_exit = self.a + self.b * (theta_range_exit + pi)
+
+        x_entry = r_entry * np.cos(theta_range_entry)
+        y_entry = r_entry * np.sin(theta_range_entry)
+        x_exit = r_exit * np.cos(theta_range_exit)
+        y_exit = r_exit * np.sin(theta_range_exit)
 
         # 绘制螺旋线
-        ax.plot(x_entry, y_entry, 'b-', alpha=0.6, label='Entry trajectory')
-        ax.plot(x_exit, y_exit, 'r-', alpha=0.6, label='Exit trajectory')
+        ax.plot(x_entry, y_entry, 'b-', linewidth=2,
+                alpha=0.7, label='Entry trajectory')
+        ax.plot(x_exit, y_exit, 'r-', linewidth=2,
+                alpha=0.7, label='Exit trajectory')
+
+        # 绘制r_circle圆圈
+        boundary_circle = plt.Circle((0, 0), self.r_circle,
+                                     fill=False, color='orange', linewidth=3,
+                                     linestyle='--', alpha=0.8, label=f'Boundary circle (r={self.r_circle})')
+        ax.add_patch(boundary_circle)
 
         # 标记关键点
         ax.plot(self.enter_point.x, self.enter_point.y,
@@ -135,65 +152,58 @@ class Uturn_system:
         ax.plot(self.exit_point.x, self.exit_point.y,
                 'ro', markersize=8, label='Exit point')
 
-        # 计算并绘制圆心
         r_r = solution['r_r']
         r_2r = solution['r_2r']
         theta_2r = solution['theta_2r']
         theta_r = solution['theta_r']
 
-        # 大圆圆心 (半径 = 2*r_2r)
-        center_2r_x = 2*r_2r * cos(theta_2r)
-        center_2r_y = 2*r_2r * sin(theta_2r)
-
-        # 小圆圆心
+        center_2r_x = r_2r * cos(theta_2r)
+        center_2r_y = r_2r * sin(theta_2r)
         center_r_x = r_r * cos(theta_r)
         center_r_y = r_r * sin(theta_r)
 
-        ax.plot(center_2r_x, center_2r_y, 'go', markersize=10,
-                label=f'Large circle center (r={2*r_2r:.1f})')
-        ax.plot(center_r_x, center_r_y, 'mo', markersize=10,
-                label=f'Small circle center (r={r_r:.1f})')
-
-        # 绘制圆
         circle_2r = plt.Circle((center_2r_x, center_2r_y),
-                               2*r_2r, fill=False, color='green', linewidth=2)
+                               r_2r, fill=False, color='green', linewidth=2)
         circle_r = plt.Circle((center_r_x, center_r_y),
                               r_r, fill=False, color='magenta', linewidth=2)
         ax.add_patch(circle_2r)
         ax.add_patch(circle_r)
 
-        # 绘制连接线
         ax.plot([self.enter_point.x, center_2r_x], [self.enter_point.y,
-                center_2r_y], 'g--', alpha=0.7, label='Enter-Center2r')
+                center_2r_y], 'g--', alpha=0.7, label='Enter-Large center')
         ax.plot([self.exit_point.x, center_r_x], [self.exit_point.y,
-                center_r_y], 'm--', alpha=0.7, label='Exit-Centerr')
+                center_r_y], 'm--', alpha=0.7, label='Exit-Small center')
         ax.plot([center_2r_x, center_r_x], [center_2r_y, center_r_y],
                 'k--', alpha=0.7, label='Center-Center')
 
-        # 绘制切线向量
         if hasattr(self.enter_point, 'tangent'):
             tangent_scale = 100
-            tangent_end_x = self.enter_point.x + tangent_scale
-            tangent_end_y = self.enter_point.y + tangent_scale * self.enter_point.tangent
             ax.arrow(self.enter_point.x, self.enter_point.y,
                      tangent_scale, tangent_scale * self.enter_point.tangent,
                      head_width=20, head_length=30, fc='blue', ec='blue', alpha=0.7)
-
         if hasattr(self.exit_point, 'tangent'):
             tangent_scale = 100
-            tangent_end_x = self.exit_point.x + tangent_scale
-            tangent_end_y = self.exit_point.y + tangent_scale * self.exit_point.tangent
             ax.arrow(self.exit_point.x, self.exit_point.y,
                      tangent_scale, tangent_scale * self.exit_point.tangent,
                      head_width=20, head_length=30, fc='red', ec='red', alpha=0.7)
 
-        ax.set_xlim(-800, 800)
-        ax.set_ylim(-800, 800)
+        # 自动调整显示范围以包含所有元素
+        all_x = np.concatenate(
+            [x_entry, x_exit, [self.enter_point.x, self.exit_point.x, center_2r_x, center_r_x]])
+        all_y = np.concatenate(
+            [y_entry, y_exit, [self.enter_point.y, self.exit_point.y, center_2r_y, center_r_y]])
+
+        margin = 200
+        x_min, x_max = np.min(all_x) - margin, np.max(all_x) + margin
+        y_min, y_max = np.min(all_y) - margin, np.max(all_y) + margin
+
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_min, y_max)
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
         ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax.set_title('Dragon Dance Spiral Trajectory with Circle Centers')
-
+        ax.set_title(
+            'Dragon Dance Spiral Trajectory with Circle Centers', fontsize=14)
         plt.tight_layout()
         plt.show()
 
@@ -272,7 +282,7 @@ if __name__ == "__main__":
         for key, value in solution.items():
             print(f"{key}: {value:.6f}")
 
-        # 可视化结果
+        print("\n=== 开始绘制可视化图形 ===")
         system.visualize(solution)
 
     except Exception as e:
