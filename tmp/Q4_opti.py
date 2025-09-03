@@ -63,6 +63,8 @@ class Uturn_system:
         residual = equations(solution)
         error = sum(abs(r) for r in residual)
 
+        # Arc_circumference =
+
         print(f"  解: r_r={solution[0]:.3f}, r_2r={solution[1]:.3f}, "
               f"θ_2r={solution[2]:.3f}, θ_r={solution[3]:.3f}")
         print(f"\n解误差: {error:.2e}")
