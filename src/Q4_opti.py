@@ -63,7 +63,6 @@ class Uturn_system:
         residual = equations(solution)
         error = sum(abs(r) for r in residual)
 
-        # self.Arc_circumference =
         self.r_r = solution[0]
         self.r_2r = solution[1]
         self.theta_2r = solution[2]
@@ -78,6 +77,8 @@ class Uturn_system:
         self.radius_r = sqrt((self.center_r[0] - self.exit_point.x)
                              ** 2 + (self.center_r[1] - (-self.exit_point.y))**2)
         self.get_arc()
+        self.Arc_circumference = self.radius_2r * \
+            abs(self.angle_diff_2r) + self.radius_r * abs(self.angle_diff_r)
 
     def calculate_external_tangent_points(self, c1, r1, c2, r2):
         """计算两个外切圆的公切线切点"""
@@ -104,41 +105,42 @@ class Uturn_system:
                            self.exit_point.x - self.center_r[0])
 
         # 大圆弧方向：沿螺旋线方向，选择短弧
-        angle_diff1 = tangent_angle_large - enter_angle
-        if angle_diff1 > pi:
-            angle_diff1 -= 2*pi
-        elif angle_diff1 < -pi:
-            angle_diff1 += 2*pi
-        angles_arc1 = np.linspace(enter_angle, enter_angle + angle_diff1, 100)
+        self.angle_diff_2r = tangent_angle_large - enter_angle
+        if self.angle_diff_2r > pi:
+            self.angle_diff_2r -= 2*pi
+        elif self.angle_diff_2r < -pi:
+            self.angle_diff_2r += 2*pi
+        angles_arc1 = np.linspace(
+            enter_angle, enter_angle + self.angle_diff_2r, 100)
 
         self.x_arc1 = self.center_2r[0] + self.radius_2r * np.cos(angles_arc1)
         self.y_arc1 = self.center_2r[1] + self.radius_2r * np.sin(angles_arc1)
 
         # 小圆弧方向：选择短弧，与大圆弧方向相反
-        angle_diff2 = exit_angle - tangent_angle_small
-        if angle_diff2 > pi:
-            angle_diff2 -= 2*pi
-        elif angle_diff2 < -pi:
-            angle_diff2 += 2*pi
+        self.angle_diff_r = exit_angle - tangent_angle_small
+        if self.angle_diff_r > pi:
+            self.angle_diff_r -= 2*pi
+        elif self.angle_diff_r < -pi:
+            self.angle_diff_r += 2*pi
 
         # 判断大圆弧方向
-        large_arc_clockwise = angle_diff1 < 0
+        large_arc_clockwise = self.angle_diff_2r < 0
 
         # 小圆弧与大圆弧方向相反
         if large_arc_clockwise:
             # 大圆弧顺时针，小圆弧逆时针
-            angle_diff2 = abs(angle_diff2)
+            self.angle_diff_r = abs(self.angle_diff_r)
         else:
             # 大圆弧逆时针，小圆弧顺时针
-            angle_diff2 = -abs(angle_diff2)
+            self.angle_diff_r = -abs(self.angle_diff_r)
 
         angles_arc2 = np.linspace(
-            tangent_angle_small, tangent_angle_small + angle_diff2, 100)
+            tangent_angle_small, tangent_angle_small + self.angle_diff_r, 100)
 
         self.x_arc2 = self.center_r[0] + self.radius_r * np.cos(angles_arc2)
         self.y_arc2 = self.center_r[1] + self.radius_r * np.sin(angles_arc2)
 
-    def visualize_test(self, solution):
+    def visualize_test(self):
         fig, ax = plt.subplots(1, 1, figsize=(16, 12))
 
         # 螺旋轨迹 - 从theta=0开始到恰好经过enter和exit点
@@ -242,7 +244,7 @@ class Uturn_point:
 
 def test():
     system = Uturn_system(
-        r_enter_point=250,
+        r_enter_point=300,
         r_exit_point=300,
         a=16*170,
         b=-170/(2*pi)
@@ -250,8 +252,12 @@ def test():
 
     print("开始求解...")
     solution = system.solve_numerical()
-    print("\n=== 开始绘制可视化图形 ===")
-    system.visualize_test(solution)
+    print(f"radius_2r: {system.radius_2r}, radius_r: {system.radius_r}")
+    print(
+        f"angle_diff_2r: {system.angle_diff_2r}, angle_diff_r: {system.angle_diff_r}")
+    print(f"所得弧长为{system.Arc_circumference}cm")
+    print("=== 开始绘制可视化图形 ===")
+    system.visualize_test()
 
 
 if __name__ == "__main__":
