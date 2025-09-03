@@ -1,14 +1,14 @@
 import numpy as np
-from math import sin, cos, atan2, sqrt, pi
+from math import sin, cos, atan, atan2, sqrt, pi
 from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 
 
 class Uturn_system:
-    def __init__(self, r_enter_point, r_exit_point, a, b, r_circle=450):
+    def __init__(self, r_enter_point, r_exit_point, Spiral_spacing=170, r_circle=450):
         self.r_circle = r_circle
-        self.a = a
-        self.b = b
+        self.a = 16*Spiral_spacing
+        self.b = -Spiral_spacing / (pi*2)
         self.enter_point = Uturn_point(
             r_enter_point, on_entry_trajectory=True, a=self.a, b=self.b)
         self.exit_point = Uturn_point(
@@ -17,6 +17,11 @@ class Uturn_system:
             r_circle, on_entry_trajectory=True, a=self.a, b=self.b)
         self.circle_exit_enter = Uturn_point(
             r_circle, on_exit_trajectory=True, a=self.a, b=self.b)
+        self.enter_length = self.calculus_length(0, self.enter_point.theta)
+        self.exit_length = self.calculus_length(-pi, self.exit_point.theta)
+
+    def calculus_length(self, theta1, theta2):
+        return self.a * (theta2 - theta1) + 1/2 * self.b * (theta2**2 - theta1**2)
 
     def get_distance_twopoint(self, point1, point2):
         return sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
@@ -75,6 +80,8 @@ class Uturn_system:
         self.get_arc()
         self.Arc_circumference = self.radius_2r * \
             abs(self.angle_diff_2r) + self.radius_r * abs(self.angle_diff_r)
+        self.Arc_circumference_2r = self.radius_2r * abs(self.angle_diff_2r)
+        self.Arc_circumference_r = self.radius_r * abs(self.angle_diff_r)
         self.enter_point.y = -self.enter_point.y
         self.exit_point.y = -self.exit_point.y
 
@@ -82,11 +89,9 @@ class Uturn_system:
         """计算两个外切圆的公切线切点"""
         dx = c2[0] - c1[0]
         dy = c2[1] - c1[1]
-        d = sqrt(dx**2 + dy**2)
         ratio = r1 / (r1 + r2)
         tangent_x = c1[0] + ratio * dx
         tangent_y = c1[1] + ratio * dy
-
         return (tangent_x, tangent_y)
 
     def get_arc(self):
@@ -138,66 +143,97 @@ class Uturn_system:
         self.x_arc2 = self.center_r[0] + self.radius_r * np.cos(angles_arc2)
         self.y_arc2 = self.center_r[1] + self.radius_r * np.sin(angles_arc2)
 
-    def visualize_test(self):
-        fig, ax = plt.subplots(1, 1, figsize=(16, 12))
+    def get_position_at_distance(self, linear_pos):
+        """根据累积距离获取最优路径上的坐标 - 核心路径映射方法"""
 
-        # 螺旋轨迹 - 从theta=0开始到恰好经过enter和exit点
-        theta_max_entry = self.enter_point.theta
-        theta_max_exit = self.exit_point.theta
-        theta_range_entry = np.linspace(0, theta_max_entry, 1000)
-        theta_range_exit = np.linspace(-pi, theta_max_exit, 1000)
-        r_entry = self.a + self.b * theta_range_entry
-        r_exit = self.a + self.b * (theta_range_exit + pi)
+        # 段1: 螺旋进入段 [0, enter_length]
+        if linear_pos <= self.enter_length:
+            return self._get_spiral_entry_position(linear_pos)
 
-        x_entry = r_entry * np.cos(theta_range_entry)
-        y_entry = r_entry * np.sin(theta_range_entry)
-        x_exit = r_exit * np.cos(theta_range_exit)
-        y_exit = r_exit * np.sin(theta_range_exit)
+        # 段2: 大圆弧段 [enter_length, enter_length + Arc_circumference_2r]
+        elif linear_pos <= self.enter_length + self.Arc_circumference_2r:
+            arc_progress = linear_pos - self.enter_length
+            return self._interpolate_arc1_position(arc_progress)
 
-        # 绘制螺旋线（镜像对称）
-        ax.plot(x_entry, -y_entry, 'b-', linewidth=2,
-                alpha=0.7, label='Entry trajectory')
-        ax.plot(x_exit, -y_exit, 'r-', linewidth=2,
-                alpha=0.7, label='Exit trajectory')
+        # 段3: 小圆弧段 [enter_length + Arc_circumference_2r, enter_length + Arc_circumference]
+        elif linear_pos <= self.enter_length + self.Arc_circumference:
+            arc_progress = linear_pos - self.enter_length - self.Arc_circumference_2r
+            return self._interpolate_arc2_position(arc_progress)
 
-        # 绘制r_circle圆圈
-        boundary_circle = plt.Circle((0, 0), self.r_circle,
-                                     fill=False, color='orange', linewidth=2,
-                                     linestyle='--', alpha=0.8, label=f'Boundary circle (r={self.r_circle})')
-        ax.add_patch(boundary_circle)
+        # 段4: 螺旋退出段 [enter_length + Arc_circumference, ∞]
+        else:
+            exit_distance = linear_pos - self.enter_length - self.Arc_circumference
+            return self._get_spiral_exit_position(exit_distance)
 
-        circle_2r_full = plt.Circle(self.center_2r, self.radius_2r, fill=False, color='green',
-                                    linewidth=2, linestyle='--', alpha=0.6, label='Large circle (full)')
-        circle_r_full = plt.Circle(self.center_r, self.radius_r, fill=False, color='magenta',
-                                   linewidth=2, linestyle='--', alpha=0.6, label='Small circle (full)')
-        ax.add_patch(circle_2r_full)
-        ax.add_patch(circle_r_full)
+    def _get_spiral_entry_position(self, linear_pos):
+        """进入螺旋段坐标计算"""
+        # 计算极坐标
+        theta = (self.a - sqrt(self.a**2 - 2*linear_pos*(-self.b))) / (-self.b)
+        r = self.a + self.b * theta
+        # 转换为直角坐标
+        x = r * cos(theta)
+        y = r * sin(theta)
+        return (x, -y)  # 镜像y坐标
 
-        ax.plot(self.x_arc1, self.y_arc1, 'g-', linewidth=6,
-                alpha=0.9, label='Path on large circle')
-        ax.plot(self.x_arc2, self.y_arc2, 'm-', linewidth=6,
-                alpha=0.9, label='Path on small circle')
+    def _interpolate_arc1_position(self, arc_distance):
+        """大圆弧段内插值获取坐标"""
+        if self.Arc_circumference_2r == 0:
+            return (self.x_arc1[0], self.y_arc1[0])
 
-        # 标记外切点
-        ax.plot(self.tangent_point[0], self.tangent_point[1], 'ko', markersize=10,
-                label='Tangent point (external)', zorder=6)
-        # 标记关键点（镜像对称）
-        ax.plot(self.enter_point.x, self.enter_point.y,
-                'bo', markersize=10, label='Enter point', zorder=5)
-        ax.plot(self.exit_point.x, self.exit_point.y,
-                'ro', markersize=10, label='Exit point', zorder=5)
-        # 绘制圆心
-        ax.plot(self.center_2r[0], self.center_2r[1], 'g+', markersize=12,
-                markeredgewidth=3, label='Circle centers')
-        ax.plot(self.center_r[0], self.center_r[1], 'm+',
-                markersize=12, markeredgewidth=3)
+        # 将弧长距离转换为数组索引参数
+        progress = arc_distance / self.Arc_circumference_2r
+        progress = max(0, min(1, progress))  # 限制在[0,1]范围
 
-        ax.set_aspect('equal')
-        ax.grid(True, alpha=0.3)
-        ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=10)
-        ax.set_title(
-            'Dragon Dance U-turn Path with Direction Arrows', fontsize=16, pad=20)
-        plt.show()
+        index = progress * (len(self.x_arc1) - 1)
+        idx = int(index)
+        frac = index - idx
+
+        if idx >= len(self.x_arc1) - 1:
+            return (self.x_arc1[-1], self.y_arc1[-1])
+
+        x = self.x_arc1[idx] + frac * (self.x_arc1[idx+1] - self.x_arc1[idx])
+        y = self.y_arc1[idx] + frac * (self.y_arc1[idx+1] - self.y_arc1[idx])
+
+        return (x, y)
+
+    def _interpolate_arc2_position(self, arc_distance):
+        """小圆弧段内插值获取坐标"""
+        if self.Arc_circumference_r == 0:
+            return (self.x_arc2[0], self.y_arc2[0])
+
+        progress = arc_distance / self.Arc_circumference_r
+        progress = max(0, min(1, progress))
+
+        index = progress * (len(self.x_arc2) - 1)
+        idx = int(index)
+        frac = index - idx
+
+        if idx >= len(self.x_arc2) - 1:
+            return (self.x_arc2[-1], self.y_arc2[-1])
+
+        x = self.x_arc2[idx] + frac * (self.x_arc2[idx+1] - self.x_arc2[idx])
+        y = self.y_arc2[idx] + frac * (self.y_arc2[idx+1] - self.y_arc2[idx])
+
+        return (x, y)
+
+    def _get_spiral_exit_position(self, exit_distance):
+        """退出螺旋段坐标计算 - 盘出曲线，从内向外螺旋，与盘入对称"""
+        # 盘出曲线的正确理解：
+        # - 起点：内圈（大θ，小r）
+        # - 终点：外圈（小θ，大r）
+        # - 螺旋公式：r = a - bθ，当θ减小时，r增大
+        
+        # 调试信息
+        param_value = self.exit_length - exit_distance
+        print(f"DEBUG: exit_distance={exit_distance}, exit_length={self.exit_length}")
+        print(f"DEBUG: 传入_get_spiral_entry_position的参数={param_value}")
+        
+        if param_value < 0:
+            print(f"WARNING: 参数为负数，可能导致数学域错误")
+            return (0, 0)  # 临时返回原点
+        
+        x, y = self._get_spiral_entry_position(param_value)
+        return (-x, -y)
 
 
 class Uturn_point:
@@ -243,9 +279,7 @@ class Uturn_point:
 def test():
     system = Uturn_system(
         r_enter_point=300,
-        r_exit_point=300,
-        a=16*170,
-        b=-170/(2*pi)
+        r_exit_point=300
     )
 
     print("开始求解...")

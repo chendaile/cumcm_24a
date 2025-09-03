@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from math import pi, sqrt, atan, sin, cos
 from Q4_opti import Uturn_system
@@ -7,6 +6,7 @@ from Q4_opti import Uturn_system
 
 class BenchDragonNode:
     def __init__(self, length, index, front_velocity, a, b,
+                 uturn_system=None,  # 新增：最优路径系统
                  head_linear_pos: float = None, front_linear_pos: float = None,
                  width=30, hole_distance=27.5):
         """
@@ -14,6 +14,7 @@ class BenchDragonNode:
         """
         self.a = a
         self.b = b
+        self.uturn_system = uturn_system  # 保存最优路径系统引用
         self.length = length
         self.index = index
         self.width = width
@@ -40,8 +41,11 @@ class BenchDragonNode:
         self.front_velocity = front_velocity
         self.back_velocity = self.get_back_velocity()
 
-        self.front_xy = self.get_xy(self.front_polar_pos)
-        self.back_xy = self.get_xy(self.back_polar_pos)
+        # 关键修改：使用最优路径获取坐标
+        self.front_xy = self.get_optimal_xy(
+            self.front_linear_pos) if self.front_enter else None
+        self.back_xy = self.get_optimal_xy(
+            self.back_linear_pos) if self.back_enter else None
 
         self.corners = self.get_bench_corners()
 
@@ -49,7 +53,12 @@ class BenchDragonNode:
         """
         The spiral formula is r = a - bθ
         """
-        theta = (self.a - sqrt(self.a**2 - 2*linear_pos*self.b)) / self.b
+        # 检查数学域有效性
+        discriminant = self.a**2 - 2*linear_pos*self.b
+        if discriminant < 0:
+            # 超出螺旋范围，返回None
+            return None
+        theta = (self.a - sqrt(discriminant)) / self.b
         r = self.a - self.b * theta
         return (r, theta)
 
@@ -61,11 +70,22 @@ class BenchDragonNode:
         y = r * sin(-theta)
         return (x, y)
 
+    def get_optimal_xy(self, linear_pos):
+        """核心方法：从linear_pos获取最优路径上的坐标"""
+        if self.uturn_system is None or linear_pos < 0:
+            # 回退到原始螺旋计算
+            polar_pos = self.get_polar_pos(linear_pos)
+            return self.get_xy(polar_pos)
+        else:
+            # 使用最优路径计算
+            return self.uturn_system.get_position_at_distance(linear_pos)
+
     def get_board_ang(self):
         """
         result = arctan((r₂sin θ₂ - r₁sin θ₁) / (r₂cos θ₂ - r₁cos θ₁))
         """
-        if self.back_enter and self.front_enter:
+        if (self.back_enter and self.front_enter and
+                self.front_polar_pos is not None and self.back_polar_pos is not None):
             r1, theta1 = self.front_polar_pos
             r2, theta2 = self.back_polar_pos
             return atan((r2*sin(-theta2)-r1*sin(-theta1)) / (r2*cos(-theta2)-r1*cos(-theta1)))
@@ -86,7 +106,8 @@ class BenchDragonNode:
             return None
 
     def get_back_velocity(self):
-        if self.board_ang:
+        if (self.board_ang and self.front_tangent_ang is not None and
+                self.back_tangent_ang is not None and self.front_velocity is not None):
             self.front_ang_diff_cos = abs(
                 cos(self.front_tangent_ang - self.board_ang))
             self.back_ang_diff_cos = abs(
@@ -95,7 +116,7 @@ class BenchDragonNode:
         else:
             self.front_ang_diff_cos = None
             self.back_ang_diff_cos = None
-            return None
+            return self.front_velocity  # 如果无法计算，保持相同速度
 
     def get_bench_corners(self):
         """
@@ -195,13 +216,14 @@ class BenchDragonNode:
 
 
 class BenchDragon:
-    def __init__(self, moment, Spiral_spacing=55):
+    def __init__(self, moment, Spiral_spacing=170, uturn_system=None):
         """
         Time unit is seconds
         """
         self.a = 16*Spiral_spacing
         self.b = Spiral_spacing / (pi*2)
         self.Spiral_spacing = Spiral_spacing
+        self.uturn_system = uturn_system  # 保存最优路径系统
         self.moment = moment
         self.NodeSum = 223
         self.Nodes = {}
@@ -209,12 +231,14 @@ class BenchDragon:
         HeadSpeed = 100
         self.Head_linear_pos = HeadSpeed * moment
         self.Nodes[1] = BenchDragonNode(
-            341, 1, 100, self.a, self.b, self.Head_linear_pos)
+            341, 1, 100, self.a, self.b, uturn_system=self.uturn_system,
+            head_linear_pos=self.Head_linear_pos)
         for i in range(2, self.NodeSum+1):
             front_linear_pos_i = self.Nodes[i-1].back_linear_pos
             front_velocity_i = self.Nodes[i-1].back_velocity
             self.Nodes[i] = BenchDragonNode(
-                220, i, front_velocity_i, self.a, self.b, front_linear_pos=front_linear_pos_i)
+                220, i, front_velocity_i, self.a, self.b, uturn_system=self.uturn_system,
+                front_linear_pos=front_linear_pos_i)
 
     def check_all_collisions(self):
         collisions = []
@@ -242,15 +266,15 @@ class BenchDragon:
 class BenchDragon_opti():
     def __init__(self, r_enter_point, r_exit_point, Spiral_spacing=170):
         self.Spiral_spacing = Spiral_spacing
-        self.a = 16*Spiral_spacing
-        self.b = Spiral_spacing / (pi*2)
         self.Uturn_system = Uturn_system(
-            r_enter_point, r_exit_point, self.a, -self.b)
+            r_enter_point, r_exit_point, self.Spiral_spacing)
         self.Uturn_system.solve_numerical()
 
     def check_moments(self, moment_range=range(1331-100, 1331+101)):
         for moment in moment_range:
-            self.BenchDragon = BenchDragon(moment, self.Spiral_spacing)
+            # 关键修改：传递UTurn系统给BenchDragon
+            self.BenchDragon = BenchDragon(
+                moment, self.Spiral_spacing, uturn_system=self.Uturn_system)
             has_collision, _ = self.BenchDragon.check_all_collisions()
             if moment % 100 == 0:
                 self.visualize_with_collisions()
@@ -263,7 +287,7 @@ class BenchDragon_opti():
 
         # 画螺旋轨道
         theta_track = np.linspace(0, 16*2*pi, 1000)
-        r_track = self.a - self.b * theta_track
+        r_track = self.BenchDragon.a - self.BenchDragon.b * theta_track
         x_track = r_track * np.cos(-theta_track)
         y_track = r_track * np.sin(-theta_track)
         plt.plot(x_track, y_track, 'k--', alpha=0.3,
@@ -278,14 +302,14 @@ class BenchDragon_opti():
                  linewidth=2, label='Turning Space Boundary (D=900cm)')
 
         # 检查碰撞
-        has_collision, collisions = self.check_all_collisions()
+        has_collision, collisions = self.BenchDragon.check_all_collisions()
         collision_nodes = set()
         for pair in collisions:
             collision_nodes.update(pair)
 
         # 画板凳矩形
-        for i in range(1, self.NodeSum+1):
-            node = self.Nodes[i]
+        for i in range(1, self.BenchDragon.NodeSum+1):
+            node = self.BenchDragon.Nodes[i]
             if node.corners:
                 corners = node.corners + [node.corners[0]]  # 闭合矩形
                 x_coords = [p[0] for p in corners]
@@ -305,8 +329,8 @@ class BenchDragon_opti():
 
         # 画节点中心点
         front_x, front_y = [], []
-        for i in range(1, self.NodeSum+1):
-            node = self.Nodes[i]
+        for i in range(1, self.BenchDragon.NodeSum+1):
+            node = self.BenchDragon.Nodes[i]
             if node.front_xy:
                 front_x.append(node.front_xy[0])
                 front_y.append(node.front_xy[1])
@@ -321,8 +345,8 @@ class BenchDragon_opti():
 
         plt.axis('equal')
         plt.grid(True, alpha=0.3)
-        plt.title(f'Dragon Collision Detection (Spiral distance={self.Spiral_spacing}, t={self.moment}s)\n'
-                  f'Collisions: {len(collisions)} pairs')
+        plt.title(f'Dragon Collision Detection (Spiral distance={self.Spiral_spacing}, t={self.BenchDragon.moment}s)\n'
+                  f'Collisions: {len(collisions)} pairs, Using Optimal UTurn Path')
         plt.xlabel('X (cm)')
         plt.ylabel('Y (cm)')
 
@@ -333,12 +357,44 @@ class BenchDragon_opti():
         boundary_legend = plt.Line2D([0], [0], color='red', linewidth=2,
                                      label='Turning Space Boundary (D=900cm)')
         plt.legend(handles=[collision_legend, normal_legend, boundary_legend])
-        plt.savefig(f'./output/Q4/optimized-{self.moment}s-{self.Spiral_spacing}cm.png',
+        plt.savefig(f'./output/Q4/optimal-path-{self.BenchDragon.moment}s-{self.Spiral_spacing}cm.png',
                     dpi=800, bbox_inches='tight')
 
 
-# def main():
+def test():
+    """测试UTurn最优路径集成"""
+    print("=== 测试UTurn最优路径集成 ===")
+
+    # 创建UTurn最优路径系统
+    uturn_opti = BenchDragon_opti(r_enter_point=400, r_exit_point=400)
+    print(f"UTurn系统参数:")
+    print(f"  进入段长度: {uturn_opti.Uturn_system.enter_length:.2f} cm")
+    print(f"  大圆弧长度: {uturn_opti.Uturn_system.Arc_circumference_2r:.2f} cm")
+    print(f"  小圆弧长度: {uturn_opti.Uturn_system.Arc_circumference_r:.2f} cm")
+    print(f"  总UTurn弧长: {uturn_opti.Uturn_system.Arc_circumference:.2f} cm")
+
+    # 创建沿最优路径的龙
+    moment_test = 1350  # 100秒时刻
+    dragon_optimal = BenchDragon(
+        moment_test, Spiral_spacing=170, uturn_system=uturn_opti.Uturn_system)
+
+    print(f"\n=== 时刻 {moment_test}s 的龙分布测试 ===")
+    print("前5个节点的坐标 (使用最优路径):")
+    for i in range(1, 6):
+        node = dragon_optimal.Nodes[i]
+        if node.front_xy:
+            print(f"节点{i}: front_xy = {node.front_xy}")
+        else:
+            print(f"节点{i}: 未进入轨道")
+
+    print("\n测试完成！")
+
+    # 生成可视化图像
+    print("正在生成可视化图像...")
+    uturn_opti.BenchDragon = dragon_optimal
+    uturn_opti.visualize_with_collisions()
+    print("图像已保存到 output/Q4/ 目录")
 
 
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    test()
