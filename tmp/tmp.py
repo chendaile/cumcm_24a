@@ -68,7 +68,7 @@ class Uturn_system:
         return solution
 
     def solve_numerical(self):
-        """数值求解方法"""
+        """数值求解方法 - 改进版本"""
         def equations(vars):
             r_r_val, r_2r_val, theta_2r_val, theta_r_val = vars
 
@@ -101,27 +101,67 @@ class Uturn_system:
 
             return [eq1, eq2, eq3, eq4]
 
-        # 初始猜测值
-        initial_guess = [200, 100, 0, pi]  # r_r, r_2r, theta_2r, theta_r
+        # 改进的初始猜测值 - 基于几何直觉
+        # 预估小圆半径大约为进入点到退出点距离的1/6
+        point_distance = sqrt((self.enter_point.x - self.exit_point.x)**2 +
+                              (self.enter_point.y - self.exit_point.y)**2)
+        estimated_r = point_distance / 6
 
-        solution = fsolve(equations, initial_guess)
+        # 多组初始猜测值尝试
+        initial_guesses = [
+            [estimated_r, estimated_r/2, 0, pi],  # 基于几何估算
+            [200, 100, 0, pi],  # 原始猜测
+            [150, 75, pi/4, 3*pi/4],  # 不同角度
+            [300, 150, -pi/4, pi/2],  # 更大半径
+        ]
+
+        best_solution = None
+        best_error = float('inf')
+
+        print(f"点间距离: {point_distance:.2f}, 估算小圆半径: {estimated_r:.2f}")
+
+        for i, guess in enumerate(initial_guesses):
+            try:
+                # 使用更严格的容差
+                solution = fsolve(equations, guess, xtol=1e-12, maxfev=5000)
+
+                # 计算残差来评估解的质量
+                residual = equations(solution)
+                error = sum(abs(r) for r in residual)
+
+                print(f"尝试 {i+1}: 误差 = {error:.2e}")
+                print(f"  解: r_r={solution[0]:.3f}, r_2r={solution[1]:.3f}, "
+                      f"θ_2r={solution[2]:.3f}, θ_r={solution[3]:.3f}")
+                print(f"  残差: {[f'{r:.2e}' for r in residual]}")
+
+                if error < best_error:
+                    best_error = error
+                    best_solution = solution
+
+            except Exception as e:
+                print(f"尝试 {i+1} 失败: {e}")
+
+        if best_solution is None:
+            raise ValueError("所有初始猜测都失败了")
+
+        print(f"\n最佳解误差: {best_error:.2e}")
         return {
-            'r_r': solution[0],
-            'r_2r': solution[1],
-            'theta_2r': solution[2],
-            'theta_r': solution[3]
+            'r_r': best_solution[0],
+            'r_2r': best_solution[1],
+            'theta_2r': best_solution[2],
+            'theta_r': best_solution[3],
+            'residual_error': best_error
         }
 
     def visualize(self, solution):
         """可视化几何元素"""
         fig, ax = plt.subplots(1, 1, figsize=(14, 12))
 
-        # 螺旋轨迹 - 从theta=0开始到r_circle=450对应的角度
-        # 计算r=450时对应的theta值
-        # 对于进入轨迹: r = a + b*theta, 所以 theta = (r-a)/b
-        # 对于退出轨迹: r = a + b*(theta+pi), 所以 theta = (r-a)/b - pi
-        theta_max_entry = (self.r_circle - self.a) / self.b
-        theta_max_exit = (self.r_circle - self.a) / self.b - pi
+        # 螺旋轨迹 - 从theta=0开始到恰好经过enter和exit点
+        # 对于进入轨迹: r = a + b*theta, 计算enter点对应的theta值
+        # 对于退出轨迹: r = a + b*(theta+pi), 计算exit点对应的theta值
+        theta_max_entry = self.enter_point.theta
+        theta_max_exit = self.exit_point.theta
 
         theta_range_entry = np.linspace(0, theta_max_entry, 1000)
         theta_range_exit = np.linspace(0, theta_max_exit, 1000)
@@ -262,7 +302,6 @@ class Uturn_point:
                     self.normal_vector = sp.Matrix([self.tangent, -1])
 
 
-# 创建实例并求解
 if __name__ == "__main__":
     system = Uturn_system(
         r_enter_point=400,
