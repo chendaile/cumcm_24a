@@ -26,46 +26,44 @@ class Uturn_system:
         theta_r = sp.Symbol('theta_r', real=True)
         self.center_circle_2r = Uturn_point(2*r_2r, theta_2r)
         self.center_circle_r = Uturn_point(r_r, theta_r)
-        self.unknowns = {'r': r_r, 'r_2r': r_2r,
-                         'theta_2r': theta_2r, 'theta_r': theta_r}
 
     def get_distance_twopoint(self, point1, point2):
         return sp_sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
 
-    def solve(self):
-        # 构建方程组
-        distance_2r_enter = self.get_distance_twopoint(
-            self.enter_point, self.center_circle_2r)
-        distance_r_exit = self.get_distance_twopoint(
-            self.exit_point, self.center_circle_r)
-        distance_r_2r = self.get_distance_twopoint(
-            self.center_circle_2r, self.center_circle_r)
+    # def solve(self):
+    #     # 构建方程组
+    #     distance_2r_enter = self.get_distance_twopoint(
+    #         self.enter_point, self.center_circle_2r)
+    #     distance_r_exit = self.get_distance_twopoint(
+    #         self.exit_point, self.center_circle_r)
+    #     distance_r_2r = self.get_distance_twopoint(
+    #         self.center_circle_2r, self.center_circle_r)
 
-        # 约束方程
-        eq1 = sp.Eq(distance_2r_enter, distance_r_exit * 2)
-        eq2 = sp.Eq(distance_r_2r, distance_r_exit * 3)
+    #     # 约束方程
+    #     eq1 = sp.Eq(distance_2r_enter, distance_r_exit * 2)
+    #     eq2 = sp.Eq(distance_r_2r, distance_r_exit * 3)
 
-        # 切线垂直约束
-        vector_2r_enter = sp.Matrix([
-            self.center_circle_2r.x - self.enter_point.x,
-            self.center_circle_2r.y - self.enter_point.y
-        ])
-        tangent_2r = sp.Matrix([1, self.enter_point.tangent])
-        eq3 = sp.Eq(tangent_2r.dot(vector_2r_enter), 0)
+    #     # 切线垂直约束
+    #     vector_2r_enter = sp.Matrix([
+    #         self.center_circle_2r.x - self.enter_point.x,
+    #         self.center_circle_2r.y - self.enter_point.y
+    #     ])
+    #     tangent_2r = sp.Matrix([1, self.enter_point.tangent])
+    #     eq3 = sp.Eq(tangent_2r.dot(vector_2r_enter), 0)
 
-        vector_r_exit = sp.Matrix([
-            self.center_circle_r.x - self.exit_point.x,
-            self.center_circle_r.y - self.exit_point.y
-        ])
-        tangent_r = sp.Matrix([1, self.exit_point.tangent])
-        eq4 = sp.Eq(tangent_r.dot(vector_r_exit), 0)
+    #     vector_r_exit = sp.Matrix([
+    #         self.center_circle_r.x - self.exit_point.x,
+    #         self.center_circle_r.y - self.exit_point.y
+    #     ])
+    #     tangent_r = sp.Matrix([1, self.exit_point.tangent])
+    #     eq4 = sp.Eq(tangent_r.dot(vector_r_exit), 0)
 
-        # 求解方程组
-        variables = [self.unknowns['r'], self.unknowns['r_2r'],
-                     self.unknowns['theta_2r'], self.unknowns['theta_r']]
+    #     # 求解方程组
+    #     variables = [self.unknowns['r'], self.unknowns['r_2r'],
+    #                  self.unknowns['theta_2r'], self.unknowns['theta_r']]
 
-        solution = sp.solve([eq1, eq2, eq3, eq4], variables)
-        return solution
+    #     solution = sp.solve([eq1, eq2, eq3, eq4], variables)
+    #     return solution
 
     def solve_numerical(self):
         """数值求解方法 - 改进版本"""
@@ -73,8 +71,8 @@ class Uturn_system:
             r_r_val, r_2r_val, theta_2r_val, theta_r_val = vars
 
             # 计算圆心坐标
-            x_2r = 2*r_2r_val * cos(theta_2r_val)
-            y_2r = 2*r_2r_val * sin(theta_2r_val)
+            x_2r = r_2r_val * cos(theta_2r_val)
+            y_2r = r_2r_val * sin(theta_2r_val)
             x_r = r_r_val * cos(theta_r_val)
             y_r = r_r_val * sin(theta_r_val)
 
@@ -101,56 +99,20 @@ class Uturn_system:
 
             return [eq1, eq2, eq3, eq4]
 
-        # 改进的初始猜测值 - 基于几何直觉
-        # 预估小圆半径大约为进入点到退出点距离的1/6
-        point_distance = sqrt((self.enter_point.x - self.exit_point.x)**2 +
-                              (self.enter_point.y - self.exit_point.y)**2)
-        estimated_r = point_distance / 6
+        guess = [200, 100, 0, pi]
+        solution = fsolve(equations, guess, xtol=1e-12, maxfev=5000)
+        residual = equations(solution)
+        error = sum(abs(r) for r in residual)
 
-        # 多组初始猜测值尝试
-        initial_guesses = [
-            [estimated_r, estimated_r/2, 0, pi],  # 基于几何估算
-            [200, 100, 0, pi],  # 原始猜测
-            [150, 75, pi/4, 3*pi/4],  # 不同角度
-            [300, 150, -pi/4, pi/2],  # 更大半径
-        ]
-
-        best_solution = None
-        best_error = float('inf')
-
-        print(f"点间距离: {point_distance:.2f}, 估算小圆半径: {estimated_r:.2f}")
-
-        for i, guess in enumerate(initial_guesses):
-            try:
-                # 使用更严格的容差
-                solution = fsolve(equations, guess, xtol=1e-12, maxfev=5000)
-
-                # 计算残差来评估解的质量
-                residual = equations(solution)
-                error = sum(abs(r) for r in residual)
-
-                print(f"尝试 {i+1}: 误差 = {error:.2e}")
-                print(f"  解: r_r={solution[0]:.3f}, r_2r={solution[1]:.3f}, "
-                      f"θ_2r={solution[2]:.3f}, θ_r={solution[3]:.3f}")
-                print(f"  残差: {[f'{r:.2e}' for r in residual]}")
-
-                if error < best_error:
-                    best_error = error
-                    best_solution = solution
-
-            except Exception as e:
-                print(f"尝试 {i+1} 失败: {e}")
-
-        if best_solution is None:
-            raise ValueError("所有初始猜测都失败了")
-
-        print(f"\n最佳解误差: {best_error:.2e}")
+        print(f"  解: r_r={solution[0]:.3f}, r_2r={solution[1]:.3f}, "
+              f"θ_2r={solution[2]:.3f}, θ_r={solution[3]:.3f}")
+        print(f"\n解误差: {error:.2e}")
         return {
-            'r_r': best_solution[0],
-            'r_2r': best_solution[1],
-            'theta_2r': best_solution[2],
-            'theta_r': best_solution[3],
-            'residual_error': best_error
+            'r_r': solution[0],
+            'r_2r': solution[1],
+            'theta_2r': solution[2],
+            'theta_r': solution[3],
+            'residual_error': error
         }
 
     def visualize(self, solution):
@@ -162,10 +124,8 @@ class Uturn_system:
         # 对于退出轨迹: r = a + b*(theta+pi), 计算exit点对应的theta值
         theta_max_entry = self.enter_point.theta
         theta_max_exit = self.exit_point.theta
-
         theta_range_entry = np.linspace(0, theta_max_entry, 1000)
-        theta_range_exit = np.linspace(0, theta_max_exit, 1000)
-
+        theta_range_exit = np.linspace(-pi, theta_max_exit, 1000)
         r_entry = self.a + self.b * theta_range_entry
         r_exit = self.a + self.b * (theta_range_exit + pi)
 
@@ -182,7 +142,7 @@ class Uturn_system:
 
         # 绘制r_circle圆圈
         boundary_circle = plt.Circle((0, 0), self.r_circle,
-                                     fill=False, color='orange', linewidth=3,
+                                     fill=False, color='orange', linewidth=2,
                                      linestyle='--', alpha=0.8, label=f'Boundary circle (r={self.r_circle})')
         ax.add_patch(boundary_circle)
 
@@ -196,6 +156,14 @@ class Uturn_system:
         r_2r = solution['r_2r']
         theta_2r = solution['theta_2r']
         theta_r = solution['theta_r']
+        x_2r = r_2r * cos(theta_2r)
+        y_2r = r_2r * sin(theta_2r)
+        x_r = r_r * cos(theta_r)
+        y_r = r_r * sin(theta_r)
+        dist_2r_enter = sqrt((x_2r - self.enter_point.x)
+                             ** 2 + (y_2r - self.enter_point.y)**2)
+        dist_r_exit = sqrt((x_r - self.exit_point.x) **
+                           2 + (y_r - self.exit_point.y)**2)
 
         center_2r_x = r_2r * cos(theta_2r)
         center_2r_y = r_2r * sin(theta_2r)
@@ -203,9 +171,9 @@ class Uturn_system:
         center_r_y = r_r * sin(theta_r)
 
         circle_2r = plt.Circle((center_2r_x, center_2r_y),
-                               r_2r, fill=False, color='green', linewidth=2)
+                               dist_2r_enter, fill=False, color='green', linewidth=2)
         circle_r = plt.Circle((center_r_x, center_r_y),
-                              r_r, fill=False, color='magenta', linewidth=2)
+                              dist_r_exit, fill=False, color='magenta', linewidth=2)
         ax.add_patch(circle_2r)
         ax.add_patch(circle_r)
 
@@ -267,10 +235,10 @@ class Uturn_point:
                 # 数值计算
                 self.x = self.r * cos(self.theta)
                 self.y = self.r * sin(self.theta)
-            else:
-                # 符号计算
-                self.x = self.r * sp.cos(self.theta)
-                self.y = self.r * sp.sin(self.theta)
+            # else:
+            #     # 符号计算
+            #     self.x = self.r * sp.cos(self.theta)
+            #     self.y = self.r * sp.sin(self.theta)
         self.get_vector()
 
     def feedback_entry_trajectory(self):
@@ -294,12 +262,12 @@ class Uturn_point:
                     # 数值计算
                     self.tangent = (sin(self.theta) * self.b + cos(self.theta) *
                                     self.r) / (cos(self.theta) * self.b - sin(self.theta) * self.r)
-                else:
-                    # 符号计算
-                    self.tangent = (sp.sin(self.theta) * self.b + sp.cos(self.theta) *
-                                    self.r) / (sp.cos(self.theta) * self.b - sp.sin(self.theta) * self.r)
-                    self.tangent_vector = sp.Matrix([1, self.tangent])
-                    self.normal_vector = sp.Matrix([self.tangent, -1])
+                # else:
+                #     # 符号计算
+                #     self.tangent = (sp.sin(self.theta) * self.b + sp.cos(self.theta) *
+                #                     self.r) / (sp.cos(self.theta) * self.b - sp.sin(self.theta) * self.r)
+                #     self.tangent_vector = sp.Matrix([1, self.tangent])
+                #     self.normal_vector = sp.Matrix([self.tangent, -1])
 
 
 if __name__ == "__main__":
