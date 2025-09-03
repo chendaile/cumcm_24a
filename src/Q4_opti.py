@@ -1,7 +1,5 @@
 import numpy as np
 from math import sin, cos, atan2, sqrt, pi
-import sympy as sp
-from sympy import sqrt as sp_sqrt
 from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 
@@ -21,7 +19,7 @@ class Uturn_system:
             r_circle, on_exit_trajectory=True, a=self.a, b=self.b)
 
     def get_distance_twopoint(self, point1, point2):
-        return sp_sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
+        return sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
 
     def solve_numerical(self):
         """数值求解方法"""
@@ -60,8 +58,6 @@ class Uturn_system:
 
         guess = [200, 100, 0, pi]
         solution = fsolve(equations, guess, xtol=1e-12, maxfev=5000)
-        residual = equations(solution)
-        error = sum(abs(r) for r in residual)
 
         self.r_r = solution[0]
         self.r_2r = solution[1]
@@ -79,6 +75,8 @@ class Uturn_system:
         self.get_arc()
         self.Arc_circumference = self.radius_2r * \
             abs(self.angle_diff_2r) + self.radius_r * abs(self.angle_diff_r)
+        self.enter_point.y = -self.enter_point.y
+        self.exit_point.y = -self.exit_point.y
 
     def calculate_external_tangent_points(self, c1, r1, c2, r2):
         """计算两个外切圆的公切线切点"""
@@ -184,9 +182,9 @@ class Uturn_system:
         ax.plot(self.tangent_point[0], self.tangent_point[1], 'ko', markersize=10,
                 label='Tangent point (external)', zorder=6)
         # 标记关键点（镜像对称）
-        ax.plot(self.enter_point.x, -self.enter_point.y,
+        ax.plot(self.enter_point.x, self.enter_point.y,
                 'bo', markersize=10, label='Enter point', zorder=5)
-        ax.plot(self.exit_point.x, -self.exit_point.y,
+        ax.plot(self.exit_point.x, self.exit_point.y,
                 'ro', markersize=10, label='Exit point', zorder=5)
         # 绘制圆心
         ax.plot(self.center_2r[0], self.center_2r[1], 'g+', markersize=12,
@@ -251,7 +249,7 @@ def test():
     )
 
     print("开始求解...")
-    solution = system.solve_numerical()
+    system.solve_numerical()
     print(f"radius_2r: {system.radius_2r}, radius_r: {system.radius_r}")
     print(
         f"angle_diff_2r: {system.angle_diff_2r}, angle_diff_r: {system.angle_diff_r}")
